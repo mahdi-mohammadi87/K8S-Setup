@@ -15,7 +15,7 @@
 * [Calico CNI](#calico-cni)
 * [Worker Nodes](#worker-nodes)
 * [Verification](#verification)
-* [Reset Script](#reset-script)
+* [Reset Script](#troubleshooting)
 * [Production Hardening](#hardening)
 
 ---
