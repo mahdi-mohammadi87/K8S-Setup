@@ -202,7 +202,9 @@ To avoid kubectl apply warnings and keep a clean declarative workflow:
 ### 5.1 Install Calico CRDs (create once)
 Run on the control-plane node:
 ```
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml \ --dry-run=client -o yaml \ | kubectl create -f - 
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml \
+  --dry-run=client -o yaml \
+| kubectl create -f -
 ```
 If CRDs already exist, Kubernetes will return AlreadyExists errors — this is expected
  and safe to ignore.
