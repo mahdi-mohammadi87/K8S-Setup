@@ -1,6 +1,5 @@
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/kubernetes/kubernetes/master/logo.png" alt="Kubernetes" width="200"/>
   <h1>Kubernetes Setup</h1>
   <p><strong>Ubuntu 22.04 LTS • kubeadm • containerd • Calico CNI</strong></p>
   <p><em>Tested on Kubernetes v1.31+ | December 2025</em></p>
@@ -18,7 +17,7 @@
 * [Worker Nodes](#worker-nodes)
 * [Verification](#verification)
 * [Reset Script](#reset-script)
-* [Production Hardening](#production-hardening)
+* [Production Hardening](#hardening)
 
 ---
 
@@ -218,19 +217,27 @@ kubectl get svc nginx
 
 If you encounter any issues during the setup process (such as network failures, join errors, or kubelet startup problems),  
 you can safely reset the node to a clean state by running the following commands:
-```
+
 🔄 Reset all Kubernetes configurations on this node
+```
 sudo kubeadm reset -f
 ```
+
 🧹 Remove leftover configuration and network files
+```
 sudo rm -rf /etc/cni/net.d /var/lib/cni/ /etc/kubernetes/ $HOME/.kube
+```
 
 🌐 Clean up network rules to avoid routing conflicts
+```
 sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
 sudo ipvsadm -C || true
+```
 
 🔁 Restart containerd to ensure a healthy runtime
+```
 sudo systemctl restart containerd
+```
 
 > ✅ After running these commands, the node will be completely clean and ready to rejoin the cluster using  
 > `kubeadm init` (for Control Plane) or `kubeadm join` (for Worker Nodes).
@@ -240,7 +247,7 @@ sudo systemctl restart containerd
 
 ---
 
-## 🛡️ Production Hardening {#production-hardening}
+## 🛡️ Hardening {#hardening}
 
 ### 🔒 Firewall Rules
 ```
