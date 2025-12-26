@@ -59,6 +59,12 @@ cat <<'EOF' | sudo tee -a /etc/hosts
 192.168.100.22 k8s-worker2.devops.local k8s-worker2
 EOF
 ```
+#### on workers
+```
+getent hosts k8s-master.devops.local
+curl -k https://k8s-master.devops.local:6443/healthz
+nc -vz k8s-master.devops.local 6443
+```
 
 ### 1.4 Disable swap (required)
 
