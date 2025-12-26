@@ -218,10 +218,10 @@ kubectl get svc nginx
 
 If you encounter any issues during the setup process (such as network failures, join errors, or kubelet startup problems),  
 you can safely reset the node to a clean state by running the following commands:
-
+```
 🔄 Reset all Kubernetes configurations on this node
 sudo kubeadm reset -f
-
+```
 🧹 Remove leftover configuration and network files
 sudo rm -rf /etc/cni/net.d /var/lib/cni/ /etc/kubernetes/ $HOME/.kube
 
