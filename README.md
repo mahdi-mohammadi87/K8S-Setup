@@ -219,6 +219,7 @@ kubectl -n kube-system get pods -l k8s-app=calico-node kubectl get nodes
 ```
 All nodes should transition to Ready.
 
+---
 
 ## Step 6 — Join workers (WORKERS ONLY)
 
