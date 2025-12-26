@@ -39,7 +39,6 @@
 ## ⚙️ Node Preparation (All Nodes) {#node-preparation}
 
 ```
-#!/bin/bash
 # ========================================
 # 1. DISABLE SWAP (CRITICAL)
 # ========================================
@@ -86,7 +85,6 @@ sysctl net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward
 ## 📦 Containerd Setup {#containerd-setup}
 
 ```
-#!/bin/bash
 # Docker repository & GPG
 sudo apt-get update && sudo apt-get install -y ca-certificates curl gnupg
 
