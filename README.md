@@ -2,7 +2,6 @@
 <div align="center">
   <h1>Kubernetes Setup</h1>
   <p><strong>Ubuntu 22.04 LTS • kubeadm • containerd • Calico CNI</strong></p>
-  <p><em>Tested on Kubernetes v1.31+ | December 2025</em></p>
 </div>
 
 <br/>
