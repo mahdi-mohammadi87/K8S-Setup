@@ -47,16 +47,16 @@ sudo hostnamectl set-hostname k8s-master
 # sudo hostnamectl set-hostname k8s-worker2
 ```
 
-### 1.3 `/etc/hosts` (lab-only)
+### 1.3 `/etc/hosts` (all nodes)
 
 ```bash
-sudo cp -a /etc/hosts /etc/hosts.bak.$(date +%F_%H%M%S)
-sudo sed -i '/k8s-master/d;/k8s-worker1/d;/k8s-worker2/d' /etc/hosts
+sudo sed -i '/k8s-master.devops.local/d' /etc/hosts
+sudo sed -i '/k8s-worker/d' /etc/hosts
 
-cat <<'EOF' | sudo tee -a /etc/hosts >/dev/null
-192.168.100.20 k8s-master
-192.168.100.21 k8s-worker1
-192.168.100.22 k8s-worker2
+cat <<'EOF' | sudo tee -a /etc/hosts
+192.168.100.20 k8s-master.devops.local k8s-master
+192.168.100.21 k8s-worker1.devops.local k8s-worker1
+192.168.100.22 k8s-worker2.devops.local k8s-worker2
 EOF
 ```
 
