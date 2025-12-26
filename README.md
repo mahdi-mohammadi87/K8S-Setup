@@ -1,12 +1,5 @@
 # Kubernetes Practice Lab (kubeadm) — Ubuntu 22.04
 
-## Topology (Lab)
-
-| Role            | Hostname      | IP             |
-|----------------|---------------|----------------|
-| Control-plane  | k8s-master     | 192.168.100.20 |
-| Worker         | k8s-worker1    | 192.168.100.21 |
-| Worker         | k8s-worker2    | 192.168.100.22 |
 
 - OS: Ubuntu Server 22.04
 - Container runtime: containerd
