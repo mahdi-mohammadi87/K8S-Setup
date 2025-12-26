@@ -1,15 +1,4 @@
 
----
-title: 🚀 Kubernetes Cluster Setup
-description: Complete step-by-step guide to deploy Kubernetes (kubeadm + containerd + Calico) on Ubuntu 22.04 LTS
-author: Mahdi Mohammadi
-date: 2025-12-26
-last_updated: 2025-12-26
-layout: default
-theme: cayman
-permalink: /
----
-
 <div align="center">
   <img src="https://raw.githubusercontent.com/kubernetes/kubernetes/master/logo.png" alt="Kubernetes" width="200"/>
   <h1>Kubernetes Setup</h1>
