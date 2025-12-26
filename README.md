@@ -194,32 +194,31 @@ kubectl get nodes -o wide || true
 
 ---
 
-## Step 5 — Install Calico CNI (CRDs first, then apply)
-Calico ships a large number of CustomResourceDefinitions (CRDs).
- CRDs should be created once, not continuously re-applied.
-To avoid kubectl apply warnings and keep a clean declarative workflow:
+## Step 5 — Install Calico CNI (CRDs once, then apply)
+Run on the control-plane node.
 
-### 5.1 Install Calico CRDs (create once)
-Run on the control-plane node:
+### 5.1 Create Calico CRDs (only if missing)
 ```
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml \
-  --dry-run=client -o yaml \
-| kubectl create -f -
-```
-If CRDs already exist, Kubernetes will return AlreadyExists errors — this is expected
- and safe to ignore.
- 
-### 5.2 Apply Calico runtime components (declarative)
-Once CRDs exist, apply the manifest normally:
-```
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml 
+# Check if Calico CRDs are already present
+if kubectl get crd bgpconfigurations.crd.projectcalico.org >/dev/null 2>&1; then
+  echo "Calico CRDs already exist — skipping CRD creation."
+else
+  echo "Creating Calico CRDs..."
+  curl -fsSL https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml \
+  | awk 'BEGIN{RS="---"} /kind:[[:space:]]*CustomResourceDefinition/ {print "---" $0}' \
+  | kubectl create -f -
+fi
 ```
 
-### 5.3 Verify Calico
+### 5.2 Apply Calico components (declarative, safe to re-run)
 ```
-kubectl -n kube-system get pods -l k8s-app=calico-node kubectl get nodes 
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
 ```
-All nodes should transition to Ready.
+###5.3 Verify
+```
+kubectl -n kube-system get pods -l k8s-app=calico-node
+kubectl get nodes
+```
 
 ---
 
