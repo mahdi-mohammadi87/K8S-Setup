@@ -213,24 +213,30 @@ kubectl get svc nginx
 
 ---
 
-## 🧹 Reset Script {#reset-script}
 
-Save as `cleanup-k8s.sh`:
+## 🧯 Troubleshooting {#troubleshooting}
 
-```
-#!/bin/bash
-echo "🧹 Complete Kubernetes Reset..."
+If you encounter any issues during the setup process (such as network failures, join errors, or kubelet startup problems),  
+you can safely reset the node to a clean state by running the following commands:
 
+🔄 Reset all Kubernetes configurations on this node
 sudo kubeadm reset -f
+
+🧹 Remove leftover configuration and network files
 sudo rm -rf /etc/cni/net.d /var/lib/cni/ /etc/kubernetes/ $HOME/.kube
 
-# Network cleanup
+🌐 Clean up network rules to avoid routing conflicts
 sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
 sudo ipvsadm -C || true
 
+🔁 Restart containerd to ensure a healthy runtime
 sudo systemctl restart containerd
-echo "✅ Node ready for re-setup!"
-```
+
+> ✅ After running these commands, the node will be completely clean and ready to rejoin the cluster using  
+> `kubeadm init` (for Control Plane) or `kubeadm join` (for Worker Nodes).
+>
+> ⚠️ **Note:** If you are using a custom CNI or network overlay (like Calico or Cilium),  
+> make sure to remove its old pods or network policies before reapplying new configurations.
 
 ---
 
