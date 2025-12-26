@@ -1,42 +1,33 @@
-# Kubernetes Practice Lab (kubeadm) — Ubuntu 22.04
+
+# Kubernetes Practice Lab (kubeadm) — Ubuntu 22.04 — Kubernetes v1.35 (Stable)
 
 
 - OS: Ubuntu Server 22.04
-- Container runtime: containerd
-- Kubernetes install method: kubeadm
+- Kubernetes: **v1.35 stable** (kubeadm/kubelet/kubectl)
+- Runtime: containerd (systemd cgroups)
 - CNI: Calico
 - Pod CIDR: `10.10.0.0/16`
 
----
-
-## Prerequisites
-
-- Root or passwordless sudo on all nodes
-- Nodes can reach each other over the network
-- (Recommended) DNS records for hostnames  
-  For lab simplicity, we use `/etc/hosts`.
+> Lab note: `/etc/hosts` is used for name resolution. In real environments, use DNS.
 
 ---
 
-## Variables (Edit if needed)
+## Variables
 
-Set these at the top of your shell session on **each node**:
+Edit if needed:
 
 ```bash
-export K8S_MINOR="1.26"            # choose a tested minor version for your environment
-export POD_CIDR="10.10.0.0/16"      # must match your CNI config expectation
-export K8S_REPO="https://pkgs.k8s.io/core:/stable:/v${K8S_MINOR}/deb/"
+export POD_CIDR="10.10.0.0/16"
+export K8S_REPO="https://pkgs.k8s.io/core:/stable:/v1.35/deb/"
 export K8S_KEYRING="/etc/apt/keyrings/kubernetes-apt-keyring.gpg"
 export K8S_LIST="/etc/apt/sources.list.d/kubernetes.list"
 ````
 
-> If you change `K8S_MINOR`, keep kubeadm/kubelet/kubectl **consistent** across all nodes.
-
 ---
 
-## Step 1 — Base OS preparation (ALL NODES)
+## Step 1 — OS prep (ALL NODES)
 
-### 1.1 Install required packages
+### 1.1 Install base packages
 
 ```bash
 sudo apt-get update -y
@@ -47,24 +38,22 @@ sudo apt-get install -y --no-install-recommends \
 ### 1.2 Set hostname (run the correct one per node)
 
 ```bash
-# Control-plane
+# control-plane
 sudo hostnamectl set-hostname k8s-master
 
-# Worker 1
+# worker1
 # sudo hostnamectl set-hostname k8s-worker1
 
-# Worker 2
+# worker2
 # sudo hostnamectl set-hostname k8s-worker2
 ```
 
-### 1.3 Add `/etc/hosts` entries (lab-only)
-
-This is idempotent: it removes old matching lines and re-adds the desired mapping.
+### 1.3 `/etc/hosts` (lab-only)
 
 ```bash
 sudo cp -a /etc/hosts /etc/hosts.bak.$(date +%F_%H%M%S)
-
 sudo sed -i '/k8s-master/d;/k8s-worker1/d;/k8s-worker2/d' /etc/hosts
+
 cat <<'EOF' | sudo tee -a /etc/hosts >/dev/null
 192.168.100.20 k8s-master
 192.168.100.21 k8s-worker1
@@ -72,11 +61,10 @@ cat <<'EOF' | sudo tee -a /etc/hosts >/dev/null
 EOF
 ```
 
-### 1.4 Disable swap (required by kubelet)
+### 1.4 Disable swap (required)
 
 ```bash
 sudo swapoff -a || true
-# Comment out any active swap entries in /etc/fstab (idempotent)
 sudo sed -i.bak '/\sswap\s/s/^\(.*\)$/#\1/g' /etc/fstab
 ```
 
@@ -86,7 +74,7 @@ Verify:
 free -h | sed -n '1,3p'
 ```
 
-### 1.5 Kernel modules and sysctl for Kubernetes
+### 1.5 Kernel modules + sysctl
 
 ```bash
 cat <<'EOF' | sudo tee /etc/modules-load.d/k8s.conf >/dev/null
@@ -108,26 +96,24 @@ sudo sysctl --system >/dev/null
 
 ---
 
-## Step 2 — Install and configure containerd (ALL NODES)
+## Step 2 — containerd (ALL NODES)
 
-### 2.1 Install containerd
+### 2.1 Install
 
 ```bash
 sudo apt-get update -y
 sudo apt-get install -y containerd
 ```
 
-### 2.2 Generate containerd config and enable systemd cgroups
+### 2.2 Configure systemd cgroups
 
 ```bash
 sudo mkdir -p /etc/containerd
 
-# Only generate default config if missing
 if [ ! -f /etc/containerd/config.toml ]; then
   sudo containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
 fi
 
-# Ensure SystemdCgroup = true (idempotent)
 sudo sed -i 's/^\(\s*SystemdCgroup\s*=\s*\)false/\1true/' /etc/containerd/config.toml
 
 sudo systemctl enable --now containerd
@@ -137,25 +123,29 @@ sudo systemctl is-active --quiet containerd && echo "containerd: OK"
 
 ---
 
-## Step 3 — Install Kubernetes packages (ALL NODES)
+## Step 3 — Kubernetes packages (ALL NODES)
 
-### 3.1 Add Kubernetes apt repo key + list
+### 3.1 Add pkgs.k8s.io repo + key
 
 ```bash
+# Fail fast if variables are missing
+[ -n "${K8S_REPO}" ] && [ -n "${K8S_KEYRING}" ] && [ -n "${K8S_LIST}" ] || { echo "ERROR: vars not set"; exit 1; }
+
+# Ensure the key URL exists (avoid silent garbage)
+curl -fsSLI "${K8S_REPO}Release.key" >/dev/null || { echo "ERROR: Cannot reach ${K8S_REPO}Release.key"; exit 1; }
+
 sudo mkdir -p /etc/apt/keyrings
+sudo rm -f "${K8S_LIST}" "${K8S_KEYRING}"
 
-# Fetch key if missing
-if [ ! -f "${K8S_KEYRING}" ]; then
-  curl -fsSL "${K8S_REPO}Release.key" | sudo gpg --dearmor -o "${K8S_KEYRING}"
-fi
+curl -fsSL "${K8S_REPO}Release.key" | sudo gpg --dearmor -o "${K8S_KEYRING}"
 
-# Write the repo list (overwrite each time to keep it correct)
-echo "deb [signed-by=${K8S_KEYRING}] ${K8S_REPO} /" | sudo tee "${K8S_LIST}" >/dev/null
+echo "deb [signed-by=${K8S_KEYRING}] ${K8S_REPO} /" \
+| sudo tee "${K8S_LIST}" >/dev/null
 
 sudo apt-get update -y
 ```
 
-### 3.2 Install kubelet/kubeadm/kubectl + hold versions
+### 3.2 Install kubelet/kubeadm/kubectl and hold
 
 ```bash
 sudo apt-get install -y kubelet kubeadm kubectl
@@ -172,19 +162,19 @@ kubectl version --client || true
 
 ---
 
-## Step 4 — Initialize the control-plane (CONTROL-PLANE ONLY)
+## Step 4 — Initialize control-plane (CONTROL-PLANE ONLY)
 
-Run on `k8s-master`:
+Run on `k8s-master`.
 
-### 4.1 Initialize cluster
+### 4.1 kubeadm init (gated)
 
-`kubeadm init` is not meant to be “re-run forever”. We gate it by checking if admin.conf exists.
+`kubeadm init` is not meant to be run repeatedly. We gate it by checking admin.conf.
 
 ```bash
 if [ ! -f /etc/kubernetes/admin.conf ]; then
   sudo kubeadm init --pod-network-cidr="${POD_CIDR}"
 else
-  echo "/etc/kubernetes/admin.conf exists — control-plane already initialized."
+  echo "Control-plane already initialized (/etc/kubernetes/admin.conf exists)."
 fi
 ```
 
@@ -196,51 +186,49 @@ sudo cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-Sanity check:
+Sanity:
 
 ```bash
-kubectl get nodes -o wide || true
 kubectl cluster-info || true
+kubectl get nodes -o wide || true
 ```
 
 ---
 
 ## Step 5 — Install CNI (Calico) (CONTROL-PLANE ONLY)
 
-Apply Calico manifest:
-
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
 ```
 
-Wait and verify:
+Wait/verify:
 
 ```bash
 kubectl -n kube-system get pods -l k8s-app=calico-node
 kubectl get nodes
 ```
 
-Nodes should eventually become `Ready`.
+Nodes should become `Ready`.
 
 ---
 
-## Step 6 — Join worker nodes (WORKERS ONLY)
+## Step 6 — Join workers (WORKERS ONLY)
 
 ### 6.1 Generate join command (CONTROL-PLANE)
 
-Run on `k8s-master`:
+On `k8s-master`:
 
 ```bash
 kubeadm token create --print-join-command
 ```
 
-Copy the output and run it on each worker with sudo, for example:
+### 6.2 Run join on each worker
+
+Run the printed command on each worker with sudo:
 
 ```bash
 sudo kubeadm join k8s-master:6443 --token <...> --discovery-token-ca-cert-hash sha256:<...>
 ```
-
-> ✅ Do **not** store tokens in this repo. Generate them when needed.
 
 Verify from master:
 
@@ -248,11 +236,11 @@ Verify from master:
 kubectl get nodes -o wide
 ```
 
+> Do **not** store join tokens in this repo.
+
 ---
 
-## Validation Checklist
-
-Run on `k8s-master`:
+## Validation Checklist (CONTROL-PLANE)
 
 ```bash
 kubectl get nodes -o wide
@@ -260,26 +248,26 @@ kubectl get pods -A
 kubectl -n kube-system get pods
 ```
 
-Quick DNS test:
+DNS test:
 
 ```bash
-kubectl run dns-test --image=busybox:1.36 -it --rm --restart=Never -- sh -c 'nslookup kubernetes.default.svc.cluster.local'
+kubectl run dns-test --image=busybox:1.36 -it --rm --restart=Never -- \
+  sh -c 'nslookup kubernetes.default.svc.cluster.local'
 ```
 
 ---
 
-## Cleanup / Reset (ALL NODES)
+## Reset / Cleanup (ALL NODES)
 
-### Worker cleanup
+### Workers
 
 ```bash
 sudo kubeadm reset -f
-sudo rm -rf /etc/cni/net.d
-sudo rm -rf /var/lib/cni
+sudo rm -rf /etc/cni/net.d /var/lib/cni
 sudo rm -rf $HOME/.kube
 ```
 
-### Control-plane cleanup
+### Control-plane
 
 ```bash
 sudo kubeadm reset -f
@@ -288,32 +276,30 @@ sudo rm -rf /etc/cni/net.d /var/lib/cni
 sudo rm -rf $HOME/.kube
 ```
 
-> ❌ Do not use `--ignore-preflight-errors` to “make it work”.
-> Fix the cause. That’s the whole point of a serious lab.
+> Do **NOT** use `--ignore-preflight-errors` to “make it work”.
+> Fix the real cause. That’s the point of a serious lab.
 
 ---
 
-## Notes / Common Issues
+## Troubleshooting
 
-* Nodes stuck `NotReady` right after init/join:
+### Nodes stuck NotReady
 
-  * You probably haven’t installed the CNI yet, or CNI pods are failing.
-  * Check:
+Usually CNI not installed or failing:
 
-    ```bash
-    kubectl -n kube-system get pods
-    kubectl -n kube-system describe pod <calico-pod>
-    ```
+```bash
+kubectl -n kube-system get pods
+kubectl -n kube-system describe pod <calico-pod>
+```
 
-* Kubelet issues:
+### Kubelet logs
 
-  ```bash
-  sudo journalctl -u kubelet -f
-  ```
+```bash
+sudo journalctl -u kubelet -f
+```
 
-* containerd issues:
+### containerd logs
 
-  ```bash
-  sudo journalctl -u containerd -f
-  ```
-
+```bash
+sudo journalctl -u containerd -f
+```
