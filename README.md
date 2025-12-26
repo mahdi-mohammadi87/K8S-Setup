@@ -126,7 +126,7 @@ This lab **does NOT support mixing runtimes**.
 ```bash
 if dpkg -l | grep -q containerd.io; then
   echo "ERROR: containerd.io detected. Remove it and use Ubuntu containerd."
-  exit 1
+  false
 fi
 ```
 
@@ -141,7 +141,7 @@ sudo apt-get install -y containerd
 
 ---
 
-### 2.3 Configure systemd cgroups (idempotent)
+### 2.3 Configure systemd cgroups
 
 ```bash
 sudo mkdir -p /etc/containerd
@@ -167,19 +167,10 @@ sudo systemctl is-active --quiet containerd && echo "containerd: OK"
 
 ```bash
 [ -n "${K8S_REPO}" ] && [ -n "${K8S_KEYRING}" ] && [ -n "${K8S_LIST}" ] \
-  || { echo "ERROR: required variables not set"; exit 1; }
+  || { echo "ERROR: required variables not set"; false; }
 
 curl -fsSLI "${K8S_REPO}Release.key" >/dev/null \
-  || { echo "ERROR: cannot reach Kubernetes repo"; exit 1; }
-
-sudo mkdir -p /etc/apt/keyrings
-sudo rm -f "${K8S_LIST}" "${K8S_KEYRING}"
-
-curl -fsSL "${K8S_REPO}Release.key" \
-  | sudo gpg --dearmor -o "${K8S_KEYRING}"
-
-echo "deb [signed-by=${K8S_KEYRING}] ${K8S_REPO} /" \
-  | sudo tee "${K8S_LIST}" >/dev/null
+  || { echo "ERROR: cannot reach Kubernetes repo"; false; }
 
 sudo apt-get update -y
 ```
