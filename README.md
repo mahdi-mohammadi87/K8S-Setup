@@ -1,6 +1,5 @@
 
-# Kubernetes Practice Lab (kubeadm) — Ubuntu 22.04 — Kubernetes v1.35 (Stable)
-
+# Kubernetes Practice Lab (kubeadm) — Ubuntu 22.04
 
 - OS: Ubuntu Server 22.04
 - Kubernetes: **v1.35 stable** (kubeadm/kubelet/kubectl)
