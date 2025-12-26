@@ -214,7 +214,7 @@ fi
 ```
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
 ```
-###5.3 Verify
+### 5.3 Verify
 ```
 kubectl -n kube-system get pods -l k8s-app=calico-node
 kubectl get nodes
