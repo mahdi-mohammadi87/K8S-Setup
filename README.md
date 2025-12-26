@@ -194,21 +194,26 @@ kubectl get nodes -o wide || true
 
 ---
 
-## Step 5 — Install CNI (Calico) (CONTROL-PLANE ONLY)
+Step 5 — Install Calico CNI (CRDs first, then apply)
+Calico ships a large number of CustomResourceDefinitions (CRDs).
+ CRDs should be created once, not continuously re-applied.
+To avoid kubectl apply warnings and keep a clean declarative workflow:
+---
+5.1 Install Calico CRDs (create once)
+Run on the control-plane node:
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml \ --dry-run=client -o yaml \ | kubectl create -f - 
+If CRDs already exist, Kubernetes will return AlreadyExists errors — this is expected
+ and safe to ignore.
+---
+5.2 Apply Calico runtime components (declarative)
+Once CRDs exist, apply the manifest normally:
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml 
+---
+5.3 Verify Calico
+kubectl -n kube-system get pods -l k8s-app=calico-node kubectl get nodes 
+All nodes should transition to Ready.
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
-```
-
-Wait/verify:
-
-```bash
-kubectl -n kube-system get pods -l k8s-app=calico-node
-kubectl get nodes
-```
-
-Nodes should become `Ready`.
-
+All nodes should transition to Ready.
 ---
 
 ## Step 6 — Join workers (WORKERS ONLY)
