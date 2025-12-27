@@ -186,9 +186,31 @@ sudo apt-mark hold kubelet kubeadm kubectl
 Required for pod networking and CNI routing.
 
 ```bash
-sudo sysctl -w net.ipv4.ip_forward=1
-sudo sed -i '/^#net\.ipv4\.ip_forward=1/s/^#//' /etc/sysctl.conf
-sudo sysctl -p
+# Required kernel module for Kubernetes networking (Calico/iptables)
+sudo modprobe br_netfilter
+
+# Ensure it loads on reboot
+echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf
+```
+
+```bash
+# Kubernetes networking prerequisites (ALL NODES)
+sudo modprobe br_netfilter
+echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf
+
+cat <<'EOF' | sudo tee /etc/sysctl.d/99-kubernetes-network.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+
+sudo sysctl --system
+```
+
+```bash
+sysctl net.bridge.bridge-nf-call-iptables
+sysctl net.ipv4.ip_forward
+lsmod | grep br_netfilter
 ```
 
 ---
