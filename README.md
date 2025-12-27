@@ -40,19 +40,19 @@ sudo apt-get install -y --no-install-recommends \
 **Control Plane**
 
 ```bash
-sudo hostnamectl set-hostname k8s-master
+sudo hostnamectl set-hostname "k8s-master.devops.local"
 ```
 
 **Worker Node 1**
 
 ```bash
-# sudo hostnamectl set-hostname k8s-worker1
+sudo hostnamectl set-hostname "k8s-worker1.devops.local"
 ```
 
 **Worker Node 2**
 
 ```bash
-# sudo hostnamectl set-hostname k8s-worker2
+sudo hostnamectl set-hostname "k8s-worker2.devops.local"
 ```
 
 Re-login or restart your shell after changing hostname.
