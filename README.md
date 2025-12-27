@@ -284,6 +284,6 @@ kubeadm token create --print-join-command
 
 ```bash
 kubectl get nodes -o wide
-kubectl get pods -A
+kubectl get pods -n kube-system -o wide
 ```
 
