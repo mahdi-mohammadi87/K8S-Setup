@@ -221,7 +221,7 @@ lsmod | grep br_netfilter
 
 ```bash
 sudo kubeadm init \
-  --pod-network-cidr=192.168.0.0/16 \
+  --pod-network-cidr=10.10.0.0/16 \
   --cri-socket=unix:///run/containerd/containerd.sock
 ```
 
@@ -251,7 +251,25 @@ sudo rm -rf /etc/kubernetes /var/lib/etcd
 ### Calico (Recommended)
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
+curl -fsSLO https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
+
+sed -i \
+  -e 's|# - name: CALICO_IPV4POOL_CIDR|- name: CALICO_IPV4POOL_CIDR|' \
+  -e 's|#   value: "192.168.0.0/16"|  value: "10.10.0.0/16"|' \
+  calico.yaml
+```
+رثقهبغ
+verify:
+```bash
+grep -A2 CALICO_IPV4POOL_CIDR calico.yaml
+```
+Apply Calico
+```bash
+kubectl apply -f calico.yaml
+```
+Validate IPPool
+```bash
+kubectl get ippools.crd.projectcalico.org -o wide
 ```
 
 Wait until all `kube-system` pods are running.
