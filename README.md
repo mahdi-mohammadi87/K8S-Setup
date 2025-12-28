@@ -108,6 +108,7 @@ Expected result:
 ```bash
 sudo apt update
 sudo apt-get install -y containerd
+sudo systemctl enable --now containerd
 ```
 
 ---
