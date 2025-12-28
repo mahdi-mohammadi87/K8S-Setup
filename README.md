@@ -134,6 +134,7 @@ sudo systemctl restart containerd
 
 ```bash
 sudo swapoff -a
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 ```
 
 > Persistent swap disabling via `/etc/fstab` is environment-specific and intentionally not enforced here.
@@ -233,6 +234,8 @@ sudo kubeadm init \
 mkdir -p $HOME/.kube
 sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
+echo 'export KUBECONFIG=$HOME/.kube/config' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ---
