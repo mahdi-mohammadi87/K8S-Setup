@@ -1,311 +1,115 @@
-
-# Kubernetes Cluster Setup using kubeadm & containerd (lab)
-
+Kubernetes Cluster Setup on VMware Workstation
+⚠️ DISCLAIMER: Educational Use Only
+This guide is intended for learning, testing, and development purposes in a lab environment. The configurations provided (e.g., disabling firewalls, using simple passwords, local storage) are not suitable for production environments.
+🏗 Architecture Overview
+Hypervisor: VMware Workstation (NAT Network: VMnet8)
+OS: Ubuntu Server 20.04/22.04 LTS
+Container Runtime: containerd
+Orchestrator: Kubernetes (Kubeadm)
+CNI (Network): Calico
+Storage: Rancher Local Path Provisioner
+Nodes:
+    * master - 192.168.100.20
+    * worker1 - 192.168.100.21
+    * worker2 - 192.168.100.22
 ---
+🚀 Part 1: Node Preparation (Run on All Nodes)
+Perform the following steps on Master, Worker1, and Worker2.
+1. Hostname & DNS Setup
+Set unique hostnames and update the hosts file to ensure local DNS resolution.
+# On Master
+sudo hostnamectl set-hostname master
+# On Worker1
+sudo hostnamectl set-hostname worker1
+# On Worker2
+sudo hostnamectl set-hostname worker2
 
-## Cluster Topology
-
-| Role          | Hostname      | FQDN                       | IP Address       |
-| ------------- | ------------- | -------------------------- | ---------------- |
-| Control Plane | `k8s-master`  | `k8s-master.devops.local`  | `192.168.100.20` |
-| Worker Node 1 | `k8s-worker1` | `k8s-worker1.devops.local` | `192.168.100.21` |
-| Worker Node 2 | `k8s-worker2` | `k8s-worker2.devops.local` | `192.168.100.22` |
-
----
-
-## Versions
-
-* Kubernetes: **v1.33.2**
-* kubeadm / kubelet / kubectl: `1.33.2-1.1`
-* Container Runtime: **containerd**
-* Pause image: `registry.k8s.io/pause:3.10`
-* CNI: **Calico v3.27.0**
-
----
-
-## 1. Base OS Preparation (ALL NODES)
-
-### 1.1 Install required base packages
-
-```bash
-sudo apt-get update -y
-sudo apt-get install -y --no-install-recommends \
-  curl ca-certificates gnupg lsb-release apt-transport-https
-```
-
----
-
-### 1.2 Configure hostname (run only the correct command per node)
-
-**Control Plane**
-
-```bash
-sudo hostnamectl set-hostname "k8s-master.devops.local"
-```
-
-**Worker Node 1**
-
-```bash
-sudo hostnamectl set-hostname "k8s-worker1.devops.local"
-```
-
-**Worker Node 2**
-
-```bash
-sudo hostnamectl set-hostname "k8s-worker2.devops.local"
-```
-
-Re-login or restart your shell after changing hostname.
-
----
-
-### 1.3 Configure `/etc/hosts` (MANDATORY — ALL NODES)
-
-Improper hostname resolution will break:
-
-* kubeadm init
-* kubeadm join
-* API server TLS
-* CNI networking
-
-Clean old entries and append correct mappings:
-
-```bash
-sudo sed -i '/k8s-master.devops.local/d' /etc/hosts
-sudo sed -i '/k8s-worker/d' /etc/hosts
-
-cat <<'EOF' | sudo tee -a /etc/hosts
-192.168.100.20 k8s-master.devops.local k8s-master
-192.168.100.21 k8s-worker1.devops.local k8s-worker1
-192.168.100.22 k8s-worker2.devops.local k8s-worker2
+# On ALL nodes
+cat <<EOF | sudo tee -a /etc/hosts
+192.168.100.20 master
+192.168.100.21 worker1
+192.168.100.22 worker2
 EOF
-```
 
----
-
-### 1.4 Hard validation (WORKERS ONLY)
-
-If these checks fail, **STOP** and fix DNS / routing.
-
-```bash
-getent hosts k8s-master.devops.local
-curl -k https://k8s-master.devops.local:6443/healthz
-nc -vz k8s-master.devops.local 6443
-```
-
-Expected result:
-
-* Hostname resolves
-* API server responds with `ok`
-* Port `6443` is reachable
-
----
-
-## 2. Install and Configure containerd (ALL NODES)
-
-### 2.1 Install containerd
-
-```bash
-sudo apt update
-sudo apt-get install -y containerd
-sudo systemctl enable --now containerd
-```
-
----
-
-### 2.2 Configure containerd for Kubernetes
-
-* Enable `SystemdCgroup`
-* Set pause image to Kubernetes-compatible version
-
-```bash
-sudo mkdir -p /etc/containerd
-
-containerd config default \
-| sed 's/SystemdCgroup = false/SystemdCgroup = true/' \
-| sed 's|sandbox_image = ".*"|sandbox_image = "registry.k8s.io/pause:3.10"|' \
-| sudo tee /etc/containerd/config.toml > /dev/null
-
-sudo systemctl restart containerd
-```
-
----
-
-### 2.3 Disable swap (required by Kubernetes)
-
-```bash
+2. Disable Swap
+Kubernetes requires swap to be disabled to function correctly.
 sudo swapoff -a
 sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
-```
+3. Kernel Modules & Sysctl Params
+Load necessary modules and configure network bridging.
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
 
-> Persistent swap disabling via `/etc/fstab` is environment-specific and intentionally not enforced here.
-
----
-
-## 3. Install Kubernetes Components (ALL NODES)
-
-### 3.1 Prepare APT and GPG keyring
-
-```bash
-sudo apt update
-sudo apt-get install -y apt-transport-https ca-certificates curl gpg
-sudo mkdir -p -m 755 /etc/apt/keyrings
-```
-
----
-
-### 3.2 Add Kubernetes APT repository (v1.33)
-
-```bash
-sudo curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /' \
-  | sudo tee /etc/apt/sources.list.d/kubernetes.list
-```
-
----
-
-### 3.3 Install pinned Kubernetes versions
-
-```bash
-sudo apt-get update
-
-KUBE_VERSION="1.33.2-1.1"
-
-sudo apt-get install -y \
-  kubelet=$KUBE_VERSION \
-  kubeadm=$KUBE_VERSION \
-  kubectl=$KUBE_VERSION
-
-sudo apt-mark hold kubelet kubeadm kubectl
-```
-
----
-
-## 4. Enable IP Forwarding (ALL NODES)
-
-Required for pod networking and CNI routing.
-
-```bash
-# Required kernel module for Kubernetes networking (Calico/iptables)
+sudo modprobe overlay
 sudo modprobe br_netfilter
 
-# Ensure it loads on reboot
-echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf
-```
-
-```bash
-# Kubernetes networking prerequisites (ALL NODES)
-sudo modprobe br_netfilter
-echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf
-
-cat <<'EOF' | sudo tee /etc/sysctl.d/99-kubernetes-network.conf
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
 EOF
 
 sudo sysctl --system
-```
+4. Install Container Runtime (containerd)
+# Install containerd
+sudo apt-get update
+sudo apt-get install -y containerd
 
-```bash
-sysctl net.bridge.bridge-nf-call-iptables
-sysctl net.ipv4.ip_forward
-lsmod | grep br_netfilter
-```
+# Generate default config
+sudo mkdir -p /etc/containerd
+sudo containerd config default | sudo tee /etc/containerd/config.toml
 
+# Enable SystemdCgroup (Critical step for Kubeadm)
+sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+
+# Restart containerd
+sudo systemctl restart containerd
+5. Install Kubernetes Tools
+Install kubelet, kubeadm, and kubectl.
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+
+# Download Google's public key
+curl -fsSL [https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key](https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key) | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+# Add repository
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] [https://pkgs.k8s.io/core:/stable:/v1.29/deb/](https://pkgs.k8s.io/core:/stable:/v1.29/deb/) /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+# Install packages
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
 ---
+🎮 Part 2: Initialize Control Plane (Master Only)
+Run this only on the Master node (192.168.100.20).
+# Initialize the cluster
+sudo kubeadm init --apiserver-advertise-address=192.168.100.20 --pod-network-cidr=192.168.0.0/16
 
-## 5. Initialize Kubernetes Control Plane (CONTROL PLANE ONLY)
-
-### 5.1 Initialize cluster
-
-```bash
-sudo kubeadm init \
-  --pod-network-cidr=10.10.0.0/16 \
-  --cri-socket=unix:///run/containerd/containerd.sock
-```
-
----
-
-### 5.2 Configure kubectl access
-
-```bash
+# Configure kubectl for the root user
 mkdir -p $HOME/.kube
-sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
-echo 'export KUBECONFIG=$HOME/.kube/config' >> ~/.bashrc
-source ~/.bashrc
-```
 
+# Install Calico Network Plugin
+kubectl apply -f [https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml](https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml)
+kubectl apply -f [https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/custom-resources.yaml](https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/custom-resources.yaml)
+Important: At the end of the init command, you will see a kubeadm join command. Copy it.
 ---
-
-### 5.3 Reset instructions (if reinitialization is required)
-
-```bash
-sudo kubeadm reset --cri-socket=unix:///run/containerd/containerd.sock
-sudo rm -rf /etc/kubernetes /var/lib/etcd
-```
-
+🔗 Part 3: Join Worker Nodes
+Run the join command (copied from the previous step) on Worker1 and Worker2.
+sudo kubeadm join 192.168.100.20:6443 --token <token> --discovery-token-ca-cert-hash sha256:<hash>
 ---
+💾 Part 4: Configure Storage Class
+Since we are on bare-metal/VMware, we need a dynamic provisioner to handle PVCs. We will use Rancher Local Path Provisioner.
+Run on Master:
+# Install Local Path Provisioner
+kubectl apply -f [https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml](https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml)
 
-## 6. Install CNI Plugin (CONTROL PLANE ONLY)
-
-### Calico (Recommended)
-
-```bash
-curl -fsSLO https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
-
-sed -i \
-  -e 's|# - name: CALICO_IPV4POOL_CIDR|- name: CALICO_IPV4POOL_CIDR|' \
-  -e 's|#   value: "192.168.0.0/16"|  value: "10.10.0.0/16"|' \
-  calico.yaml
-```
-رثقهبغ
-verify:
-```bash
-grep -A2 CALICO_IPV4POOL_CIDR calico.yaml
-```
-Apply Calico
-```bash
-kubectl apply -f calico.yaml
-```
-Validate IPPool
-```bash
-kubectl get ippools.crd.projectcalico.org -o wide
-```
-
-Wait until all `kube-system` pods are running.
-
----
-
-## 7. Join Worker Nodes to the Cluster (WORKERS ONLY)
-
-After `kubeadm init`, a **join command** is printed.
-
-Run **that exact command** on each worker node.
-
-⚠️ **DO NOT reuse example tokens**
-
-```bash
-sudo kubeadm join <CONTROL_PLANE_IP>:6443 \
-  --token <TOKEN> \
-  --discovery-token-ca-cert-hash sha256:<HASH>
-```
-
-If lost, regenerate on the control plane:
-
-```bash
-kubeadm token create --print-join-command
-```
-
----
-
-## 8. Post-Installation Validation (CONTROL PLANE)
-
-```bash
-kubectl get nodes -o wide
-kubectl get pods -n kube-system -o wide
-```
-
+# Patch it to be the default StorageClass
+kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+✅ Verification
+On Master, run:
+kubectl get nodes
+All nodes should be in Ready status.
